@@ -27,9 +27,9 @@ void picomenso_mutate(struct ParametersBlock *model)
       {
         char case_ = random()%2;
         if (case_ == 0)
-          cblock->data[i] += (random()%2 ? 1 :-1)* ((random() % (step)) + ((float)(random()%0xfffff))/0xfffff);
+          cblock->data[i] += (random()%2 ? 1 :-1)* ((random() % (step)) + ((float)(random()%0xffff))/0xffff);
         else
-          cblock->data[i] = (random()%2 ? 1:-1)*((float)(random()%0xfffff))/0xfffff;
+          cblock->data[i] = (random()%2 ? 1:-1)*((float)(random()%0xffff))/0xffff;
       }
     }
     cblock = cblock->next;
@@ -43,6 +43,33 @@ void picomenso_thread_wrapper(void (*forwardFunction)(struct ParametersBlock *,f
   *stopSignal=1;
 }
 
+float picomenso_batch_evaluate(struct ParametersBlock *model,
+                              void (*forwardFunction)(struct ParametersBlock *,float *,float *),
+                              float *inputs,
+                              float *grounds,
+                              int inputSize,
+                              int groundsSize,
+                              int batchSize,
+                              float *outputblock)
+{
+  float global_error=0;
+  for(int i=0; i != batchSize; i++)
+  {
+    forwardFunction(model, (inputs+i*inputSize),outputblock);
+    float local_error=0;
+
+    for (int o=0; o != groundsSize; o++)
+    {
+      float tmp= (float)*(grounds+o+i*groundsSize)- (float)*(outputblock+o);
+      local_error+=tmp*tmp;
+    }
+    global_error+=local_error;
+  }
+  global_error /= batchSize;
+  return global_error;
+}
+    
+
 void picomenso_optimizer(struct ParametersBlock *model, 
                          void (*forwardFunction)(struct ParametersBlock *,float *,float *),
                          float *inputs,
@@ -55,32 +82,23 @@ void picomenso_optimizer(struct ParametersBlock *model,
                          float minimal_expected_loss)
 {
   //pthread_t *thread_pool  = (pthread_t*)malloc(sizeof(pthread_t)*mutation_space);
-  float predicted[groundsSize*mutation_space];
+  float predicted[groundsSize];
   float global_error=0xffff,local_error,mutated_error=0;
   int parameterCount = block_count_parameters(model);
   struct ParametersBlock *mutations = (struct ParametersBlock *) 
                                       malloc(sizeof(struct ParametersBlock) * (mutation_space));
+  
+  struct ParametersBlock gradientModel; 
+  block_clone(model,&gradientModel,true);
 
   for(int m=0; m!= mutation_space; m++)
     block_clone(model, mutations+m,true);
 
   int bestMutation =-1;
 
-  global_error=0;
-  for(int i=0; i != batchSize; i++)
-  {
-    forwardFunction(model, (inputs+i*inputSize),predicted);
-    local_error=0;
-
-    for (int o=0; o != groundsSize; o++)
-    {
-      float tmp= (float)*(grounds+o+i*groundsSize)- (float)*(predicted+o);
-      local_error+=tmp*tmp;
-    }
-    global_error+=local_error;
-  }
-  global_error /= batchSize;
-
+  global_error = picomenso_batch_evaluate(model,forwardFunction,inputs,grounds,
+                                          inputSize,groundsSize,batchSize,
+                                          predicted);
 
 
   for (int e=0 ; e != epochs; e++)
@@ -95,27 +113,41 @@ void picomenso_optimizer(struct ParametersBlock *model,
     for(int m=0; m != mutation_space; m++)
     {
       mutated_error=0;
-      for(int i=0; i != batchSize; i++)
-      { 
-        forwardFunction(mutations+m, (inputs+i*inputSize),predicted);
-        local_error=0;
-        //current value
-        for (int o=0; o != groundsSize; o++)
-        {
-          float tmp= (float)*(grounds+o+i*groundsSize)- (float)*(predicted+o);
-          local_error+=tmp*tmp;
-        }
-        mutated_error+=local_error;
-      }
-      mutated_error/=batchSize;
-
-      //if this is the gradient descent mutation, update parameters based on gradients
+      mutated_error = picomenso_batch_evaluate(mutations+m,forwardFunction,inputs,grounds,
+                                          inputSize,groundsSize,batchSize,
+                                          predicted);
       if (mutated_error < global_error) {
         bestMutation=m;
         global_error = mutated_error;
       }
     }
     if (bestMutation > -1) 
+    {
       block_clone(mutations+bestMutation , model,false);
+    }
+    else //use gradient here
+    {
+      float delta_error=0;
+      struct ParametersBlock *gradientTape = &gradientModel;
+      block_clone(model,&gradientModel,false);
+      while(gradientTape)
+      {
+        for (int e=0; e!= gradientTape->nElements;e++)
+        {
+          float tmp = gradientTape->data[e];
+          gradientTape->data[e]+=1e-9;
+          delta_error = picomenso_batch_evaluate(&gradientModel,forwardFunction,inputs,grounds,
+                                                 inputSize,groundsSize,batchSize,predicted);
+          gradientTape->data[e] = tmp - global_error/delta_error*tmp*1e-6;
+        }
+        gradientTape = gradientTape->next; 
+      }
+      if (global_error > delta_error)
+      {
+        block_clone(&gradientModel,model,false);
+        global_error = delta_error;
+      }
+    }
+
   }
 }

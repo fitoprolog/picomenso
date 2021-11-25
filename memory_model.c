@@ -175,7 +175,6 @@ void block_clone(struct ParametersBlock *src,
       cblock_dst->next->nElements=0;
       cblock_dst->next->next=0;
     }
-    printf("%d VS",cblock_src->nElements);
     memcpy(cblock_dst->data, cblock_src->data, cblock_src->nElements*sizeof(float));
     cblock_src = cblock_src->next;
     cblock_dst = cblock_dst->next;

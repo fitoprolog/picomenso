@@ -19,11 +19,17 @@ struct ParametersBlock
 };
 
 char block_save(struct ParametersBlock *block,const char *fileName);
+
 char block_load(struct ParametersBlock *block, const char *fileName);
+
 char block_from_array(struct ParametersBlock *block,unsigned char *bytes,size_t dataSize);
+
 void block_print(struct ParametersBlock *block);
+
 void block_randomize(struct ParametersBlock *block);
+
 void block_iterator(struct ParametersBlock *block, void (*callback)(struct ParametersBlock *));
+
 void picomenso_optimizer(struct ParametersBlock *model, 
                          void (*forwardFunction)(struct ParametersBlock *,float *,float *),
                          float *inputs,
@@ -34,9 +40,21 @@ void picomenso_optimizer(struct ParametersBlock *model,
                          int epochs,
                          int mutation_space,
                          float minimal_expected_loss);
+
 void picomenso_thread_wrapper(void (*forwardFunction)(struct ParametersBlock *,float *,float *),
                               struct ParametersBlock * model , float *inputs, float *grounds, char *stopSignal);
+
 int block_count_parameters(struct ParametersBlock *block);
+
 void block_clone(struct ParametersBlock *src,
                 struct ParametersBlock *dst,char allocate);
+
+float picomenso_batch_evaluate(struct ParametersBlock *model,
+                              void (*forwardFunction)(struct ParametersBlock *,float *,float *),
+                              float *inputs,
+                              float *grounds,
+                              int inputSize,
+                              int groundsSize,
+                              int batchSize,
+                              float *outputblock);
 #endif 

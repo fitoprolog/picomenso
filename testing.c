@@ -48,14 +48,14 @@ void test_ground_function( float *input, float *output)
 {
 
   *output = 1/(1+expf(-(input[0]*0.1337+input[1]*0.08344)));
-  float so = 1/(1+expf(-(0.2316763*input[0]+input[1]*0.06669)));
+  float so = 1/(1+expf(-(-0.2316763*input[0]+input[1]*0.06669)));
   *output += so;
 }
 
 void test_learn_function(struct ParametersBlock *model, float *input, float *output)  
 {
-   *output = 1/(1+expf(-(model->data[0]*input[0])));
-   float so = 1/(1+expf(-(model->data[2]*input[0]+input[1]*model->next->data[0])));
+   *output = 1/(1+expf(-(model->data[0]*input[0]+model->data[1]*input[1])));
+   float so = 1/(1+expf(-(model->next->data[1]*input[0]+input[1]*model->next->data[0])));
    *output+=so;
 }
 
@@ -74,7 +74,7 @@ void test_read_array()
   float inputs[3*1000];
   float grounds[1000];
   float outputs=0;
-  float firstLayerData[] = {3,0,0};
+  float firstLayerData[] = {3,0};
   float secondLayerData[] = {-11,0};
   struct ParametersBlock one={0},two={0};
   BLOCK_SET_DATA(one,firstLayerData);
@@ -104,7 +104,7 @@ void test_read_array()
     block_clone(&one,&cloneTest,false);
   block_print(&cloneTest);
   printf("*************************optimizing****************************\n");
-  picomenso_optimizer(&one,test_learn_function,inputs,grounds,3,1,1000,10000,16,5e-10);
+  picomenso_optimizer(&one,test_learn_function,inputs,grounds,3,1,1000,60000,100,5e-10);
   block_print(&one);
 }
 
