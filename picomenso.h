@@ -8,6 +8,9 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #ifndef __PICOMENSO_H_ 
 #define __PICOMENSO_H_ 1 
 #define BLOCK_SET_DATA(B,D)  B.nElements = sizeof(D)/sizeof(int32_t);B.data = D;                             
+#define true 1 
+#define false 0 
+
 struct ParametersBlock
 {
   u_int32_t nElements;   
@@ -31,5 +34,9 @@ void picomenso_optimizer(struct ParametersBlock *model,
                          int epochs,
                          int mutation_space,
                          float minimal_expected_loss);
+void picomenso_thread_wrapper(void (*forwardFunction)(struct ParametersBlock *,float *,float *),
+                              struct ParametersBlock * model , float *inputs, float *grounds, char *stopSignal);
 int block_count_parameters(struct ParametersBlock *block);
+void block_clone(struct ParametersBlock *src,
+                struct ParametersBlock *dst,char allocate);
 #endif 

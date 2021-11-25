@@ -158,3 +158,27 @@ int block_count_parameters(struct ParametersBlock *block)
   }
   return ret;
 }
+
+void block_clone(struct ParametersBlock *src,
+                struct ParametersBlock *dst, char allocate)
+{
+  struct ParametersBlock *cblock_src = src;
+  struct ParametersBlock *cblock_dst=dst;
+
+  while(cblock_src && cblock_src->nElements)
+  {
+    if(allocate)
+    {
+      cblock_dst->nElements = cblock_src->nElements;
+      cblock_dst->data = (float*)malloc(sizeof(float)*cblock_src->nElements);
+      cblock_dst->next = (struct ParametersBlock*)malloc(sizeof(struct ParametersBlock));
+      cblock_dst->next->nElements=0;
+      cblock_dst->next->next=0;
+    }
+    printf("%d VS",cblock_src->nElements);
+    memcpy(cblock_dst->data, cblock_src->data, cblock_src->nElements*sizeof(float));
+    cblock_src = cblock_src->next;
+    cblock_dst = cblock_dst->next;
+  }
+}
+

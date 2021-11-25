@@ -54,8 +54,8 @@ void test_ground_function( float *input, float *output)
 
 void test_learn_function(struct ParametersBlock *model, float *input, float *output)  
 {
-   *output = 1/(1+expf(-(model->data[1]*input[0]+input[1]*model->data[0])));
-   float so = 1/(1+expf(-(model->data[2]*input[0]+input[1]*model->next->data[1])));
+   *output = 1/(1+expf(-(model->data[0]*input[0])));
+   float so = 1/(1+expf(-(model->data[2]*input[0]+input[1]*model->next->data[0])));
    *output+=so;
 }
 
@@ -92,9 +92,19 @@ void test_read_array()
     test_ground_function(inputs+ i*3,grounds+i);
     printf("%f\n",*(grounds+i));
   }
-  printf("*************************optimizing****************************\n");
   //return;
-  picomenso_optimizer(&one,test_learn_function,inputs,grounds,3,1,1000,200000,100,5e-10);
+  //picomenso_optimizer(&one,test_learn_function,inputs,grounds,3,1,1000,100,100,5e-10);
+  block_print(&one);
+  struct ParametersBlock cloneTest; 
+  block_clone(&one,&cloneTest,true);
+  printf("Is clone working\n");
+  block_print(&cloneTest);
+  printf("Second cloning without allocation 10000 times\n");
+  for (int i=0; i != 1000;i++)
+    block_clone(&one,&cloneTest,false);
+  block_print(&cloneTest);
+  printf("*************************optimizing****************************\n");
+  picomenso_optimizer(&one,test_learn_function,inputs,grounds,3,1,1000,10000,16,5e-10);
   block_print(&one);
 }
 
