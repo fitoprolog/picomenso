@@ -56,5 +56,6 @@ float picomenso_batch_evaluate(struct ParametersBlock *model,
                               int inputSize,
                               int groundsSize,
                               int batchSize,
-                              float *outputblock);
+                              float *outputblock,
+                              float *gradientUpdate);
 #endif 

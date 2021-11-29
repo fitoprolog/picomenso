@@ -47,15 +47,15 @@ void test_one_adder(struct ParametersBlock *block, int n)
 void test_ground_function( float *input, float *output)  
 {
 
-  *output = 1/(1+expf(-(input[0]*0.1337+input[1]*0.08344)));
-  float so = 1/(1+expf(-(-0.2316763*input[0]+input[1]*0.06669)));
+  *output = 1/(1+expf(-(input[0]*0.003337+input[1]*0.011344)));
+  float so = 1/(1+expf(-(-0.2316763*input[0]+input[1]*0.30669)));
   *output += so;
 }
 
 void test_learn_function(struct ParametersBlock *model, float *input, float *output)  
 {
    *output = 1/(1+expf(-(model->data[0]*input[0]+model->data[1]*input[1])));
-   float so = 1/(1+expf(-(model->next->data[1]*input[0]+input[1]*model->next->data[0])));
+   float so = 1/(1+expf(-(model->next->data[0]*input[0]+input[1]*model->next->data[1])));
    *output+=so;
 }
 
@@ -84,7 +84,7 @@ void test_read_array()
   block_randomize_init(&one);
   block_print(&one);
   printf("*************generating samples ******************************\n");
-  for(int i=0; i!= 1000; i++)
+  for(int i=0; i!= 100; i++)
   {
     inputs[i*3  ]=random()%0xff;
     inputs[i*3+1]=random()%0xff;
@@ -104,7 +104,7 @@ void test_read_array()
     block_clone(&one,&cloneTest,false);
   block_print(&cloneTest);
   printf("*************************optimizing****************************\n");
-  picomenso_optimizer(&one,test_learn_function,inputs,grounds,3,1,1000,60000,100,5e-10);
+  picomenso_optimizer(&one,test_learn_function,inputs,grounds,3,1,100,3000,10000,5e-10);
   block_print(&one);
 }
 

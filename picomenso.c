@@ -13,7 +13,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include <string.h>
 #include <pthread.h>
 
-void picomenso_mutate(struct ParametersBlock *model)
+void picomenso_mutate(struct ParametersBlock *model, float error)
 {
   int step = random()%0xff;
   if (!step)
@@ -27,9 +27,9 @@ void picomenso_mutate(struct ParametersBlock *model)
       {
         char case_ = random()%2;
         if (case_ == 0)
-          cblock->data[i] += (random()%2 ? 1 :-1)* ((random() % (step)) + ((float)(random()%0xffff))/0xffff);
+          cblock->data[i] += ((random()%2 ? 1 :-1)* ((random() % (step)) + ((float)(random()%0xffff))/0xffff))*(error);
         else
-          cblock->data[i] = (random()%2 ? 1:-1)*((float)(random()%0xffff))/0xffff;
+          cblock->data[i] = ((random()%2 ? 1:-1)*((float)(random()%0xffff))/0xffff)*(error);
       }
     }
     cblock = cblock->next;
@@ -50,20 +50,27 @@ float picomenso_batch_evaluate(struct ParametersBlock *model,
                               int inputSize,
                               int groundsSize,
                               int batchSize,
-                              float *outputblock)
+                              float *outputblock,
+                              float *gradientAccumulated)
 {
   float global_error=0;
+  if (gradientAccumulated)
+    for (int o=0; o != groundsSize; o++)
+      *(gradientAccumulated+o) = 0;
+
   for(int i=0; i != batchSize; i++)
   {
     forwardFunction(model, (inputs+i*inputSize),outputblock);
     float local_error=0;
-
     for (int o=0; o != groundsSize; o++)
     {
       float tmp= (float)*(grounds+o+i*groundsSize)- (float)*(outputblock+o);
-      local_error+=tmp*tmp;
+      if (gradientAccumulated)
+        local_error += tmp*(float)*(outputblock+o)*tmp*(float)*(outputblock+o);
+      else 
+        local_error+=tmp*tmp;
     }
-    global_error+=local_error;
+    global_error +=local_error;
   }
   global_error /= batchSize;
   return global_error;
@@ -82,7 +89,7 @@ void picomenso_optimizer(struct ParametersBlock *model,
                          float minimal_expected_loss)
 {
   //pthread_t *thread_pool  = (pthread_t*)malloc(sizeof(pthread_t)*mutation_space);
-  float predicted[groundsSize];
+  float predicted[groundsSize],predictedGradient[groundsSize];
   float global_error=0xffff,local_error,mutated_error=0;
   int parameterCount = block_count_parameters(model);
   struct ParametersBlock *mutations = (struct ParametersBlock *) 
@@ -98,16 +105,17 @@ void picomenso_optimizer(struct ParametersBlock *model,
 
   global_error = picomenso_batch_evaluate(model,forwardFunction,inputs,grounds,
                                           inputSize,groundsSize,batchSize,
-                                          predicted);
+                                          predicted,0);
 
 
   for (int e=0 ; e != epochs; e++)
   {
     printf("MSE %.10e at %d\n",global_error,e);
+    global_error=fabs(global_error);
     if (global_error  <= minimal_expected_loss ) return;
 
     for(int m=0; m!= mutation_space; m++)
-      picomenso_mutate(mutations+m);
+      picomenso_mutate(mutations+m,global_error);
     bestMutation=-1;
 
     for(int m=0; m != mutation_space; m++)
@@ -115,7 +123,7 @@ void picomenso_optimizer(struct ParametersBlock *model,
       mutated_error=0;
       mutated_error = picomenso_batch_evaluate(mutations+m,forwardFunction,inputs,grounds,
                                           inputSize,groundsSize,batchSize,
-                                          predicted);
+                                          predicted,0);
       if (mutated_error < global_error) {
         bestMutation=m;
         global_error = mutated_error;
@@ -124,6 +132,11 @@ void picomenso_optimizer(struct ParametersBlock *model,
     if (bestMutation > -1) 
     {
       block_clone(mutations+bestMutation , model,false);
+      for (int m =0 ; m!= mutation_space; m++)
+      {
+        if (m != bestMutation)
+          block_clone(model,mutations+m,false);
+      }
     }
     else //use gradient here
     {
@@ -135,19 +148,27 @@ void picomenso_optimizer(struct ParametersBlock *model,
         for (int e=0; e!= gradientTape->nElements;e++)
         {
           float tmp = gradientTape->data[e];
-          gradientTape->data[e]+=1e-9;
+          gradientTape->data[e]+=1e-12;
           delta_error = picomenso_batch_evaluate(&gradientModel,forwardFunction,inputs,grounds,
-                                                 inputSize,groundsSize,batchSize,predicted);
-          gradientTape->data[e] = tmp - global_error/delta_error*tmp*1e-6;
+                                                 inputSize,groundsSize,batchSize,predicted,predictedGradient);
+          gradientTape->data[e] = (tmp - delta_error*tmp)*1e-10;
         }
         gradientTape = gradientTape->next; 
       }
+      delta_error = picomenso_batch_evaluate(&gradientModel,forwardFunction,inputs,grounds,
+                                             inputSize,groundsSize,batchSize,predicted,predictedGradient);
       if (global_error > delta_error)
       {
         block_clone(&gradientModel,model,false);
         global_error = delta_error;
+        for (int m =0 ; m!= mutation_space; m++)
+        {
+          if (m != bestMutation)
+            block_clone(model,mutations+m,false);
+        }
+
       }
     }
-
   }
+  free(mutations);
 }
