@@ -27,9 +27,9 @@ void picomenso_mutate(struct ParametersBlock *model, float error)
       {
         char case_ = random()%2;
         if (case_ == 0)
-          cblock->data[i] += ((random()%2 ? 1 :-1)* ((random() % (step)) + ((float)(random()%0xffff))/0xffff))*(error);
+          cblock->data[i] += ((random()%2 ? 1 :-1)* ((random() % (step)) + ((float)(random()%0xffffff))/0xffffff))*(error);
         else
-          cblock->data[i] = ((random()%2 ? 1:-1)*((float)(random()%0xffff))/0xffff)*(error);
+          cblock->data[i] = ((random()%2 ? 1:-1)*((float)(random()%0xffffff))/0xffffff)*(error);
       }
     }
     cblock = cblock->next;
@@ -90,7 +90,9 @@ void picomenso_optimizer(struct ParametersBlock *model,
 {
   //pthread_t *thread_pool  = (pthread_t*)malloc(sizeof(pthread_t)*mutation_space);
   float predicted[groundsSize],predictedGradient[groundsSize];
-  float global_error=0xffff,local_error,mutated_error=0;
+  float global_error=0xffff,last_global_error=0, local_error,mutated_error=0;
+  float update_step = 1e-10;
+  int saddle_point = 0;
   int parameterCount = block_count_parameters(model);
   struct ParametersBlock *mutations = (struct ParametersBlock *) 
                                       malloc(sizeof(struct ParametersBlock) * (mutation_space));
@@ -151,7 +153,7 @@ void picomenso_optimizer(struct ParametersBlock *model,
           gradientTape->data[e]+=1e-12;
           delta_error = picomenso_batch_evaluate(&gradientModel,forwardFunction,inputs,grounds,
                                                  inputSize,groundsSize,batchSize,predicted,predictedGradient);
-          gradientTape->data[e] = (tmp - delta_error*tmp)*1e-10;
+          gradientTape->data[e] = (tmp - delta_error*tmp)*update_step;
         }
         gradientTape = gradientTape->next; 
       }
@@ -159,6 +161,7 @@ void picomenso_optimizer(struct ParametersBlock *model,
                                              inputSize,groundsSize,batchSize,predicted,predictedGradient);
       if (global_error > delta_error)
       {
+        printf("yush\n");
         block_clone(&gradientModel,model,false);
         global_error = delta_error;
         for (int m =0 ; m!= mutation_space; m++)
@@ -169,6 +172,14 @@ void picomenso_optimizer(struct ParametersBlock *model,
 
       }
     }
+    if ( fabs(global_error - last_global_error) <= 1e-12)
+      saddle_point++;
+    if (saddle_point > 5)
+    {
+      saddle_point =0;
+      update_step/=10;
+    }
+
   }
   free(mutations);
 }
